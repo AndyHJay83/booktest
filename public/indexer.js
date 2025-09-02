@@ -1,13 +1,16 @@
 // Word Indexer for PDF Text Extraction
 // Uses PDF.js to extract text and bounding boxes, stores in IndexedDB via Dexie
 
-import Dexie from 'https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/modern/dexie.mjs';
-
 // Initialize IndexedDB database
-const db = new Dexie('BookReaderDB');
-db.version(1).stores({
-    words: '++id, word, page, row, index, bbox, sentence'
-});
+let db;
+async function initializeDB() {
+    const { Dexie } = await import('https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/modern/dexie.mjs');
+    db = new Dexie('BookReaderDB');
+    db.version(1).stores({
+        words: '++id, word, page, row, index, bbox, sentence'
+    });
+    return db;
+}
 
 class PDFIndexer {
     constructor() {
@@ -223,6 +226,11 @@ class PDFIndexer {
         try {
             console.log(`Storing ${this.words.length} words in IndexedDB...`);
             
+            // Initialize database if not already done
+            if (!db) {
+                await initializeDB();
+            }
+            
             // Clear existing words for this document
             await db.words.clear();
             
@@ -247,6 +255,10 @@ class PDFIndexer {
      */
     async searchWords(searchTerm) {
         try {
+            if (!db) {
+                await initializeDB();
+            }
+            
             const results = await db.words
                 .where('word')
                 .startsWithIgnoreCase(searchTerm)
@@ -267,6 +279,10 @@ class PDFIndexer {
      */
     async getStats() {
         try {
+            if (!db) {
+                await initializeDB();
+            }
+            
             const totalWords = await db.words.count();
             const uniqueWords = await db.words.orderBy('word').uniqueKeys();
             
