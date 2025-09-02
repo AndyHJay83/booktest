@@ -206,6 +206,7 @@ class PDFViewer {
             
             this.pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
             console.log('PDF document loaded, pages:', this.pdfDoc.numPages);
+            console.log('PDF document info:', await this.pdfDoc.getMetadata());
             
             this.totalPages = this.pdfDoc.numPages;
             this.currentPage = 1;

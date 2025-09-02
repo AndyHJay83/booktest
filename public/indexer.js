@@ -93,67 +93,76 @@ class PDFIndexer {
      * @returns {Array} Array of rows, each containing text items
      */
     groupTextItemsByRows(textItems, viewport) {
-        const rows = [];
+        console.log(`Processing ${textItems.length} text items for row grouping`);
         
-        // Sort text items by Y coordinate (top to bottom)
-        const sortedItems = textItems.sort((a, b) => {
-            const aY = viewport.convertToViewportPoint(a.transform[5], a.transform[4])[1];
-            const bY = viewport.convertToViewportPoint(b.transform[5], b.transform[4])[1];
-            return bY - aY; // Higher Y values first (PDF coordinates are bottom-up)
+        // Convert all items to viewport coordinates and sort by Y (top to bottom)
+        const itemsWithCoords = textItems.map(item => {
+            const x = viewport.convertToViewportPoint(item.transform[4], item.transform[5])[0];
+            const y = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
+            return { ...item, x, y };
         });
         
-        console.log(`Processing ${sortedItems.length} text items for row grouping`);
+        // Sort by Y coordinate (top to bottom in viewport coordinates)
+        itemsWithCoords.sort((a, b) => a.y - b.y);
         
         // Log Y positions of first 20 items
         console.log('Y positions of first 20 items:');
-        sortedItems.slice(0, 20).forEach((item, i) => {
-            const y = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
-            console.log(`  Item ${i}: Y=${y.toFixed(1)} "${item.str}"`);
+        itemsWithCoords.slice(0, 20).forEach((item, i) => {
+            console.log(`  Item ${i}: Y=${item.y.toFixed(1)} "${item.str}"`);
         });
         
-        // Calculate dynamic tolerance based on text height
-        let avgTextHeight = 0;
-        if (sortedItems.length > 0) {
-            const heights = sortedItems.map(item => item.height).filter(h => h > 0);
-            avgTextHeight = heights.length > 0 ? heights.reduce((a, b) => a + b, 0) / heights.length : 12;
-        }
+        // Calculate text height statistics
+        const heights = itemsWithCoords.map(item => item.height).filter(h => h > 0);
+        const avgHeight = heights.length > 0 ? heights.reduce((a, b) => a + b, 0) / heights.length : 12;
+        const minHeight = Math.min(...heights);
+        const maxHeight = Math.max(...heights);
         
-        // Use a smaller tolerance - either 1 pixel or 10% of text height, whichever is smaller
-        const tolerance = Math.min(1, avgTextHeight * 0.1);
-        console.log(`Using tolerance of ${tolerance.toFixed(2)} pixels (avg text height: ${avgTextHeight.toFixed(2)})`);
+        console.log(`Text height stats: min=${minHeight.toFixed(1)}, avg=${avgHeight.toFixed(1)}, max=${maxHeight.toFixed(1)}`);
         
-        sortedItems.forEach((item, itemIndex) => {
-            const itemY = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
+        // Use a more intelligent tolerance based on text height variation
+        // If text heights are very similar, use a smaller tolerance
+        const heightVariation = maxHeight - minHeight;
+        const baseTolerance = Math.max(2, avgHeight * 0.2); // At least 2 pixels, or 20% of avg height
+        const tolerance = heightVariation < avgHeight * 0.5 ? baseTolerance * 0.5 : baseTolerance;
+        
+        console.log(`Using tolerance of ${tolerance.toFixed(2)} pixels (height variation: ${heightVariation.toFixed(2)})`);
+        
+        // Group items into rows using a more robust algorithm
+        const rows = [];
+        
+        for (const item of itemsWithCoords) {
+            let assignedToRow = false;
             
-            // Find existing row with similar Y coordinate
-            let foundRow = false;
-            for (let i = 0; i < rows.length; i++) {
-                const rowY = rows[i][0].y;
-                if (Math.abs(itemY - rowY) <= tolerance) {
-                    rows[i].push({ ...item, y: itemY });
-                    foundRow = true;
+            // Try to find an existing row where this item belongs
+            for (const row of rows) {
+                const rowY = row[0].y;
+                const distance = Math.abs(item.y - rowY);
+                
+                // If the item is close enough to this row, add it
+                if (distance <= tolerance) {
+                    row.push(item);
+                    assignedToRow = true;
                     break;
                 }
             }
             
-            // Create new row if no matching row found
-            if (!foundRow) {
-                rows.push([{ ...item, y: itemY }]);
+            // If no suitable row found, create a new one
+            if (!assignedToRow) {
+                rows.push([item]);
             }
-        });
+        }
         
         // Sort items within each row by X coordinate (left to right)
         rows.forEach((row, rowIndex) => {
-            row.sort((a, b) => {
-                const aX = viewport.convertToViewportPoint(a.transform[4], a.transform[5])[0];
-                const bX = viewport.convertToViewportPoint(b.transform[4], b.transform[5])[0];
-                return aX - bX;
-            });
+            row.sort((a, b) => a.x - b.x);
             
             // Log row details
             const rowText = row.map(item => item.str).join(' ');
-            console.log(`Row ${rowIndex + 1}: ${row.length} items, Y=${row[0].y.toFixed(1)}, Text: "${rowText.substring(0, 50)}${rowText.length > 50 ? '...' : ''}"`);
+            const rowY = row[0].y;
+            console.log(`Row ${rowIndex + 1}: ${row.length} items, Y=${rowY.toFixed(1)}, Text: "${rowText.substring(0, 50)}${rowText.length > 50 ? '...' : ''}"`);
         });
+        
+        console.log(`Created ${rows.length} rows from ${textItems.length} text items`);
         
         return rows;
     }
