@@ -53,21 +53,33 @@ class PDFIndexer {
      */
     async processPage(pdfDoc, pageNum, scale) {
         try {
+            console.log(`\n=== PROCESSING PAGE ${pageNum} ===`);
+            
             const page = await pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale });
             
             // Get text content from the page
             const textContent = await page.getTextContent();
-            console.log(`Page ${pageNum}: Found ${textContent.items.length} text items`);
+            console.log(`Found ${textContent.items.length} text items on page ${pageNum}`);
+            
+            // Log first few text items for debugging
+            console.log('First 10 text items with Y positions:');
+            textContent.items.slice(0, 10).forEach((item, i) => {
+                const y = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
+                console.log(`  Item ${i}: "${item.str}" at Y=${y.toFixed(1)}`);
+            });
             
             // Group text items by rows (similar Y coordinates)
             const rows = this.groupTextItemsByRows(textContent.items, viewport);
-            console.log(`Page ${pageNum}: Grouped into ${rows.length} rows`);
+            console.log(`Grouped into ${rows.length} rows`);
             
             // Process each row
             rows.forEach((row, rowIndex) => {
+                console.log(`\n--- Processing Row ${rowIndex + 1} ---`);
                 this.processRow(row, pageNum, rowIndex + 1, viewport); // Start row numbering at 1
             });
+            
+            console.log(`\n=== COMPLETED PAGE ${pageNum} ===\n`);
             
         } catch (error) {
             console.error(`Error processing page ${pageNum}:`, error);
@@ -82,7 +94,7 @@ class PDFIndexer {
      */
     groupTextItemsByRows(textItems, viewport) {
         const rows = [];
-        const tolerance = 8; // pixels tolerance for grouping by Y coordinate (increased for better grouping)
+        const tolerance = 5; // pixels tolerance for grouping by Y coordinate
         
         // Sort text items by Y coordinate (top to bottom)
         const sortedItems = textItems.sort((a, b) => {
@@ -92,6 +104,13 @@ class PDFIndexer {
         });
         
         console.log(`Processing ${sortedItems.length} text items for row grouping`);
+        
+        // Log Y positions of first 20 items
+        console.log('Y positions of first 20 items:');
+        sortedItems.slice(0, 20).forEach((item, i) => {
+            const y = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
+            console.log(`  Item ${i}: Y=${y.toFixed(1)} "${item.str}"`);
+        });
         
         sortedItems.forEach((item, itemIndex) => {
             const itemY = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
@@ -121,7 +140,9 @@ class PDFIndexer {
                 return aX - bX;
             });
             
-            console.log(`Row ${rowIndex + 1}: ${row.length} text items, Y position: ${row[0].y.toFixed(1)}`);
+            // Log row details
+            const rowText = row.map(item => item.str).join(' ');
+            console.log(`Row ${rowIndex + 1}: ${row.length} items, Y=${row[0].y.toFixed(1)}, Text: "${rowText.substring(0, 50)}${rowText.length > 50 ? '...' : ''}"`);
         });
         
         return rows;
@@ -135,9 +156,9 @@ class PDFIndexer {
      * @param {Object} viewport - PDF.js viewport object
      */
     processRow(row, pageNum, rowIndex, viewport) {
-        let wordIndex = 1; // Start word index at 1 for this row
         const rowWords = []; // Collect all words in this row first
         
+        // First pass: collect all words from all text items in this row
         row.forEach(item => {
             // Tokenize the text into words
             const words = this.tokenizeText(item.str);
@@ -156,7 +177,9 @@ class PDFIndexer {
             });
         });
         
-        // Now process the words in this row with correct indexing
+        console.log(`Row ${rowIndex}: Found ${rowWords.length} words: [${rowWords.map(w => w.word).join(', ')}]`);
+        
+        // Second pass: process words with correct sequential indexing
         rowWords.forEach((wordData, index) => {
             const wordIndexInRow = index + 1; // Index within the row (1-based)
             
@@ -176,6 +199,9 @@ class PDFIndexer {
             };
             
             this.words.push(wordObj);
+            
+            // Log each word for debugging
+            console.log(`  Word ${wordIndexInRow}: "${wordData.word}" -> Page ${pageNum}, Row ${rowIndex}, Index ${wordIndexInRow}`);
             
             // Reset sentence buffer if sentence is complete
             if (isSentenceEnd) {
