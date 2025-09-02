@@ -79,28 +79,38 @@ class PDFViewer {
         try {
             this.showLoading();
             
+            console.log('Loading PDF file:', file.name);
             const arrayBuffer = await file.arrayBuffer();
+            console.log('ArrayBuffer created, size:', arrayBuffer.byteLength);
+            
             this.pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+            console.log('PDF document loaded, pages:', this.pdfDoc.numPages);
+            
             this.totalPages = this.pdfDoc.numPages;
             this.currentPage = 1;
             
-            this.updatePageInfo();
-            this.updateNavigationButtons();
-            this.renderPage();
-            this.showViewer();
+            // Show the viewer content and render the first page
+            this.showViewerContent();
+            await this.renderPage();
             
         } catch (error) {
             console.error('Error loading PDF:', error);
-            this.showError('Failed to load PDF file. Please try again.');
+            this.showError(`Failed to load PDF file: ${error.message}`);
         }
     }
     
     async renderPage() {
-        if (!this.pdfDoc) return;
+        if (!this.pdfDoc) {
+            console.error('No PDF document loaded');
+            return;
+        }
         
         try {
+            console.log('Rendering page:', this.currentPage);
             const page = await this.pdfDoc.getPage(this.currentPage);
             const viewport = page.getViewport({ scale: this.scale });
+            
+            console.log('Page viewport:', viewport.width, 'x', viewport.height);
             
             // Set canvas dimensions
             this.canvas.height = viewport.height;
@@ -112,11 +122,13 @@ class PDFViewer {
                 viewport: viewport
             };
             
+            console.log('Starting page render...');
             await page.render(renderContext).promise;
+            console.log('Page render completed');
             
         } catch (error) {
             console.error('Error rendering page:', error);
-            this.showError('Failed to render page. Please try again.');
+            this.showError(`Failed to render page: ${error.message}`);
         }
     }
     
@@ -193,6 +205,7 @@ class PDFViewer {
     }
     
     showLoading() {
+        // Show loading state without destroying the viewer structure
         this.viewerSection.innerHTML = `
             <div class="loading">
                 <div style="font-size: 24px; margin-bottom: 16px;">⏳</div>
@@ -200,6 +213,29 @@ class PDFViewer {
             </div>
         `;
         this.showViewer();
+    }
+    
+    showViewerContent() {
+        // Restore the viewer content after loading
+        this.viewerSection.innerHTML = `
+            <div class="controls">
+                <button class="btn btn-secondary" id="prev-btn" disabled>← Previous</button>
+                <div class="page-info" id="page-info">Page 1 of 1</div>
+                <button class="btn btn-secondary" id="next-btn" disabled>Next →</button>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="pdf-canvas"></canvas>
+            </div>
+            
+            <div class="controls">
+                <button class="btn btn-primary" id="new-file-btn">Upload New File</button>
+            </div>
+        `;
+        
+        // Re-initialize elements after DOM update
+        this.initializeElements();
+        this.attachEventListeners();
     }
     
     showError(message) {
@@ -217,6 +253,21 @@ class PDFViewer {
 
 // Initialize the PDF viewer when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+    // Check if PDF.js is loaded
+    if (typeof pdfjsLib === 'undefined') {
+        console.error('PDF.js library not loaded');
+        document.body.innerHTML = `
+            <div style="padding: 20px; text-align: center;">
+                <h1>Error</h1>
+                <p>PDF.js library failed to load. Please refresh the page.</p>
+                <button onclick="location.reload()">Refresh Page</button>
+            </div>
+        `;
+        return;
+    }
+    
+    console.log('PDF.js version:', pdfjsLib.version);
+    console.log('Initializing PDF viewer...');
     new PDFViewer();
 });
 
