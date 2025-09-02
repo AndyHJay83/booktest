@@ -3,8 +3,10 @@ const urlsToCache = [
   '/',
   '/index.html',
   '/main.js',
+  '/indexer.js',
   '/manifest.webmanifest',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  'https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/modern/dexie.mjs'
 ];
 
 // Install event - cache resources

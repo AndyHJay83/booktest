@@ -7,6 +7,7 @@ class PDFViewer {
         this.currentPage = 1;
         this.totalPages = 0;
         this.scale = 1.5;
+        this.indexer = null;
         
         this.initializeElements();
         this.attachEventListeners();
@@ -36,12 +37,14 @@ class PDFViewer {
         this.nextBtn = document.getElementById('next-btn');
         this.pageInfo = document.getElementById('page-info');
         this.newFileBtn = document.getElementById('new-file-btn');
+        this.indexPdfBtn = document.getElementById('index-pdf-btn');
         
         console.log('Navigation elements:', {
             prevBtn: this.prevBtn,
             nextBtn: this.nextBtn,
             pageInfo: this.pageInfo,
-            newFileBtn: this.newFileBtn
+            newFileBtn: this.newFileBtn,
+            indexPdfBtn: this.indexPdfBtn
         });
     }
     
@@ -81,6 +84,12 @@ class PDFViewer {
         if (this.newFileBtn) {
             this.newFileBtn.addEventListener('click', () => this.resetViewer());
             console.log('New file button event listener attached');
+        }
+        
+        // Index PDF button (only if it exists)
+        if (this.indexPdfBtn) {
+            this.indexPdfBtn.addEventListener('click', () => this.indexPDF());
+            console.log('Index PDF button event listener attached');
         }
         
         // Keyboard navigation
@@ -258,10 +267,82 @@ class PDFViewer {
         }
     }
     
+    async indexPDF() {
+        if (!this.pdfDoc) {
+            this.showError('No PDF loaded. Please upload a PDF file first.');
+            return;
+        }
+
+        try {
+            console.log('Starting PDF indexing...');
+            
+            // Disable the index button during processing
+            if (this.indexPdfBtn) {
+                this.indexPdfBtn.disabled = true;
+                this.indexPdfBtn.textContent = 'Indexing...';
+            }
+
+            // Initialize the indexer if not already done
+            if (!this.indexer) {
+                this.indexer = new window.PDFIndexer();
+            }
+
+            // Start indexing
+            const words = await this.indexer.indexPDF(this.pdfDoc, this.scale);
+            
+            console.log(`Indexing completed! Extracted ${words.length} words.`);
+            
+            // Show success message
+            this.showIndexingSuccess(words.length);
+            
+        } catch (error) {
+            console.error('Error during indexing:', error);
+            this.showError(`Indexing failed: ${error.message}`);
+        } finally {
+            // Re-enable the index button
+            if (this.indexPdfBtn) {
+                this.indexPdfBtn.disabled = false;
+                this.indexPdfBtn.textContent = 'Index PDF';
+            }
+        }
+    }
+
+    showIndexingSuccess(wordCount) {
+        // Show success message temporarily
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.style.cssText = `
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            color: #065f46;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        `;
+        successDiv.innerHTML = `
+            <strong>✅ Indexing Complete!</strong><br>
+            Successfully indexed ${wordCount} words from ${this.totalPages} pages.<br>
+            <small>Check the browser console to see the first 10 indexed words.</small>
+        `;
+        
+        // Insert after the canvas container
+        const canvasContainer = this.viewerSection.querySelector('.canvas-container');
+        canvasContainer.parentNode.insertBefore(successDiv, canvasContainer.nextSibling);
+        
+        // Remove the success message after 5 seconds
+        setTimeout(() => {
+            if (successDiv.parentNode) {
+                successDiv.parentNode.removeChild(successDiv);
+            }
+        }, 5000);
+    }
+
     resetViewer() {
         this.pdfDoc = null;
         this.currentPage = 1;
         this.totalPages = 0;
+        this.indexer = null;
         this.pdfInput.value = '';
         this.hideViewer();
     }
@@ -299,6 +380,7 @@ class PDFViewer {
             </div>
             
             <div class="controls">
+                <button class="btn btn-primary" id="index-pdf-btn">Index PDF</button>
                 <button class="btn btn-primary" id="new-file-btn">Upload New File</button>
             </div>
         `;
