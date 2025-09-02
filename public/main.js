@@ -208,6 +208,20 @@ class PDFViewer {
             console.log('PDF document loaded, pages:', this.pdfDoc.numPages);
             console.log('PDF document info:', await this.pdfDoc.getMetadata());
             
+            // Additional debugging for page count issue
+            console.log('PDF document details:');
+            console.log('  - numPages:', this.pdfDoc.numPages);
+            console.log('  - fingerprint:', this.pdfDoc.fingerprints);
+            console.log('  - loadingTask:', this.pdfDoc.loadingTask);
+            
+            // Try to get the first page to verify it exists
+            try {
+                const firstPage = await this.pdfDoc.getPage(1);
+                console.log('  - First page loaded successfully, viewport:', firstPage.getViewport({ scale: 1 }));
+            } catch (error) {
+                console.error('  - Error loading first page:', error);
+            }
+            
             this.totalPages = this.pdfDoc.numPages;
             this.currentPage = 1;
             

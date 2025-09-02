@@ -119,15 +119,13 @@ class PDFIndexer {
         
         console.log(`Text height stats: min=${minHeight.toFixed(1)}, avg=${avgHeight.toFixed(1)}, max=${maxHeight.toFixed(1)}`);
         
-        // Use a more intelligent tolerance based on text height variation
-        // If text heights are very similar, use a smaller tolerance
-        const heightVariation = maxHeight - minHeight;
-        const baseTolerance = Math.max(2, avgHeight * 0.2); // At least 2 pixels, or 20% of avg height
-        const tolerance = heightVariation < avgHeight * 0.5 ? baseTolerance * 0.5 : baseTolerance;
+        // Use a more conservative tolerance based on text height
+        // The tolerance should be much smaller than the average text height
+        const tolerance = Math.max(1, avgHeight * 0.1); // 10% of average height, minimum 1 pixel
         
-        console.log(`Using tolerance of ${tolerance.toFixed(2)} pixels (height variation: ${heightVariation.toFixed(2)})`);
+        console.log(`Using conservative tolerance of ${tolerance.toFixed(2)} pixels`);
         
-        // Group items into rows using a more robust algorithm
+        // Group items into rows using a more strict clustering algorithm
         const rows = [];
         
         for (const item of itemsWithCoords) {
@@ -163,6 +161,15 @@ class PDFIndexer {
         });
         
         console.log(`Created ${rows.length} rows from ${textItems.length} text items`);
+        
+        // Additional validation: check for rows with too many items
+        const problematicRows = rows.filter(row => row.length > 20);
+        if (problematicRows.length > 0) {
+            console.warn(`Found ${problematicRows.length} rows with more than 20 items. This suggests the tolerance might be too large.`);
+            problematicRows.forEach((row, i) => {
+                console.warn(`  Problematic row ${i + 1}: ${row.length} items`);
+            });
+        }
         
         return rows;
     }
