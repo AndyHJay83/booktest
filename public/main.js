@@ -13,35 +13,79 @@ class PDFViewer {
     }
     
     initializeElements() {
+        console.log('Initializing elements...');
+        
         this.pdfInput = document.getElementById('pdf-input');
+        console.log('PDF input element:', this.pdfInput);
+        
         this.fileInputLabel = document.getElementById('file-input-label');
+        console.log('File input label element:', this.fileInputLabel);
+        
         this.viewerSection = document.getElementById('viewer-section');
+        console.log('Viewer section element:', this.viewerSection);
+        
         this.canvas = document.getElementById('pdf-canvas');
-        this.ctx = this.canvas.getContext('2d');
+        console.log('Canvas element:', this.canvas);
+        
+        if (this.canvas) {
+            this.ctx = this.canvas.getContext('2d');
+            console.log('Canvas context:', this.ctx);
+        }
+        
         this.prevBtn = document.getElementById('prev-btn');
         this.nextBtn = document.getElementById('next-btn');
         this.pageInfo = document.getElementById('page-info');
         this.newFileBtn = document.getElementById('new-file-btn');
+        
+        console.log('Navigation elements:', {
+            prevBtn: this.prevBtn,
+            nextBtn: this.nextBtn,
+            pageInfo: this.pageInfo,
+            newFileBtn: this.newFileBtn
+        });
     }
     
     attachEventListeners() {
+        console.log('Attaching event listeners...');
+        
         // File input change
-        this.pdfInput.addEventListener('change', (e) => this.handleFileSelect(e));
+        if (this.pdfInput) {
+            this.pdfInput.addEventListener('change', (e) => this.handleFileSelect(e));
+            console.log('File input event listener attached');
+        } else {
+            console.error('PDF input element not found');
+        }
         
         // Drag and drop
-        this.fileInputLabel.addEventListener('dragover', (e) => this.handleDragOver(e));
-        this.fileInputLabel.addEventListener('dragleave', (e) => this.handleDragLeave(e));
-        this.fileInputLabel.addEventListener('drop', (e) => this.handleDrop(e));
+        if (this.fileInputLabel) {
+            this.fileInputLabel.addEventListener('dragover', (e) => this.handleDragOver(e));
+            this.fileInputLabel.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+            this.fileInputLabel.addEventListener('drop', (e) => this.handleDrop(e));
+            console.log('Drag and drop event listeners attached');
+        } else {
+            console.error('File input label element not found');
+        }
         
-        // Navigation buttons
-        this.prevBtn.addEventListener('click', () => this.previousPage());
-        this.nextBtn.addEventListener('click', () => this.nextPage());
+        // Navigation buttons (only if they exist)
+        if (this.prevBtn) {
+            this.prevBtn.addEventListener('click', () => this.previousPage());
+            console.log('Previous button event listener attached');
+        }
         
-        // New file button
-        this.newFileBtn.addEventListener('click', () => this.resetViewer());
+        if (this.nextBtn) {
+            this.nextBtn.addEventListener('click', () => this.nextPage());
+            console.log('Next button event listener attached');
+        }
+        
+        // New file button (only if it exists)
+        if (this.newFileBtn) {
+            this.newFileBtn.addEventListener('click', () => this.resetViewer());
+            console.log('New file button event listener attached');
+        }
         
         // Keyboard navigation
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+        console.log('Keyboard event listener attached');
     }
     
     handleDragOver(e) {
@@ -58,20 +102,46 @@ class PDFViewer {
         e.preventDefault();
         this.fileInputLabel.classList.remove('dragover');
         
+        console.log('File dropped');
         const files = e.dataTransfer.files;
-        if (files.length > 0 && files[0].type === 'application/pdf') {
-            this.loadPDF(files[0]);
+        console.log('Dropped files:', files);
+        
+        if (files.length > 0) {
+            const file = files[0];
+            console.log('Dropped file:', file.name, 'Type:', file.type, 'Size:', file.size);
+            
+            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                console.log('Valid PDF file dropped, loading...');
+                this.loadPDF(file);
+            } else {
+                console.log('Invalid file type dropped:', file.type);
+                this.showError(`Please drop a valid PDF file. Dropped file type: ${file.type}`);
+            }
         } else {
-            this.showError('Please select a valid PDF file.');
+            console.log('No files dropped');
+            this.showError('No files dropped. Please drop a PDF file.');
         }
     }
     
     handleFileSelect(e) {
+        console.log('File input changed');
+        console.log('Files:', e.target.files);
+        
         const file = e.target.files[0];
-        if (file && file.type === 'application/pdf') {
-            this.loadPDF(file);
+        if (file) {
+            console.log('Selected file:', file.name, 'Type:', file.type, 'Size:', file.size);
+            
+            // Check if it's a PDF file
+            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                console.log('Valid PDF file detected, loading...');
+                this.loadPDF(file);
+            } else {
+                console.log('Invalid file type:', file.type);
+                this.showError(`Please select a valid PDF file. Selected file type: ${file.type}`);
+            }
         } else {
-            this.showError('Please select a valid PDF file.');
+            console.log('No file selected');
+            this.showError('No file selected. Please choose a PDF file.');
         }
     }
     
