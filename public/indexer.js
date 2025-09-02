@@ -94,7 +94,6 @@ class PDFIndexer {
      */
     groupTextItemsByRows(textItems, viewport) {
         const rows = [];
-        const tolerance = 5; // pixels tolerance for grouping by Y coordinate
         
         // Sort text items by Y coordinate (top to bottom)
         const sortedItems = textItems.sort((a, b) => {
@@ -111,6 +110,17 @@ class PDFIndexer {
             const y = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
             console.log(`  Item ${i}: Y=${y.toFixed(1)} "${item.str}"`);
         });
+        
+        // Calculate dynamic tolerance based on text height
+        let avgTextHeight = 0;
+        if (sortedItems.length > 0) {
+            const heights = sortedItems.map(item => item.height).filter(h => h > 0);
+            avgTextHeight = heights.length > 0 ? heights.reduce((a, b) => a + b, 0) / heights.length : 12;
+        }
+        
+        // Use a smaller tolerance - either 1 pixel or 10% of text height, whichever is smaller
+        const tolerance = Math.min(1, avgTextHeight * 0.1);
+        console.log(`Using tolerance of ${tolerance.toFixed(2)} pixels (avg text height: ${avgTextHeight.toFixed(2)})`);
         
         sortedItems.forEach((item, itemIndex) => {
             const itemY = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
