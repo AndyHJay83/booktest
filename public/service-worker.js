@@ -2,7 +2,7 @@ const CACHE_NAME = 'book-reader-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/src/main.js',
+  '/main.js',
   '/manifest.webmanifest',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
 ];
