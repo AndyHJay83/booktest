@@ -70,6 +70,15 @@ class PDFSearch {
                 throw new Error('Lunr.js not loaded');
             }
             
+            if (!this.words || this.words.length === 0) {
+                throw new Error('No words loaded to build index');
+            }
+            
+            console.log(`Building search index with ${this.words.length} words`);
+            
+            // Capture words array for use inside Lunr function
+            const wordsToIndex = this.words;
+            
             // Create search index
             this.index = lunr(function () {
                 // Define searchable fields
@@ -80,7 +89,7 @@ class PDFSearch {
                 this.field('index');
                 
                 // Add documents to index
-                this.words.forEach((word, idx) => {
+                wordsToIndex.forEach((word, idx) => {
                     this.add({
                         id: idx,
                         word: word.word,
