@@ -19,6 +19,7 @@ class PDFIndexer {
         this.sentenceBuffer = [];
         this.customTolerance = null;
         this.lastDetectedRows = [];
+        this.manualRowBoundaries = null;
     }
 
     /**
@@ -107,6 +108,12 @@ class PDFIndexer {
         // Sort by Y coordinate (top to bottom in viewport coordinates)
         itemsWithCoords.sort((a, b) => a.y - b.y);
         
+        // If manual row boundaries are set, use them instead of automatic grouping
+        if (this.manualRowBoundaries && this.manualRowBoundaries.length > 0) {
+            console.log('Using manual row boundaries:', this.manualRowBoundaries);
+            return this.groupTextItemsByManualRows(itemsWithCoords);
+        }
+        
         // Log Y positions of first 20 items
         console.log('Y positions of first 20 items:');
         itemsWithCoords.slice(0, 20).forEach((item, i) => {
@@ -174,6 +181,45 @@ class PDFIndexer {
                 console.warn(`  Problematic row ${i + 1}: ${row.length} items`);
             });
         }
+        
+        return rows;
+    }
+    
+    /**
+     * Group text items by manually defined row boundaries
+     * @param {Array} itemsWithCoords - Array of text items with coordinates
+     * @returns {Array} Array of rows, each containing text items
+     */
+    groupTextItemsByManualRows(itemsWithCoords) {
+        console.log(`Grouping ${itemsWithCoords.length} items using ${this.manualRowBoundaries.length} manual row boundaries`);
+        
+        const rows = [];
+        
+        // Create rows based on manual boundaries
+        for (let i = 0; i <= this.manualRowBoundaries.length; i++) {
+            const topBoundary = i === 0 ? -Infinity : this.manualRowBoundaries[i - 1];
+            const bottomBoundary = i === this.manualRowBoundaries.length ? Infinity : this.manualRowBoundaries[i];
+            
+            // Find items that fall within this row's boundaries
+            const rowItems = itemsWithCoords.filter(item => {
+                return item.y > topBoundary && item.y <= bottomBoundary;
+            });
+            
+            // Sort items within the row by X coordinate (left to right)
+            rowItems.sort((a, b) => a.x - b.x);
+            
+            if (rowItems.length > 0) {
+                rows.push(rowItems);
+                
+                const rowText = rowItems.map(item => item.str).join(' ');
+                console.log(`Manual Row ${i + 1}: ${rowItems.length} items, Y range: ${topBoundary.toFixed(1)} to ${bottomBoundary.toFixed(1)}, Text: "${rowText.substring(0, 50)}${rowText.length > 50 ? '...' : ''}"`);
+            }
+        }
+        
+        console.log(`Created ${rows.length} rows from manual boundaries`);
+        
+        // Store the detected rows for overlay
+        this.lastDetectedRows = rows;
         
         return rows;
     }
@@ -386,6 +432,15 @@ class PDFIndexer {
      */
     getLastDetectedRows() {
         return this.lastDetectedRows;
+    }
+    
+    /**
+     * Set manual row boundaries for custom row grouping
+     * @param {Array} boundaries - Array of Y coordinates for row boundaries
+     */
+    setManualRowBoundaries(boundaries) {
+        this.manualRowBoundaries = boundaries;
+        console.log('Manual row boundaries set:', boundaries);
     }
 }
 

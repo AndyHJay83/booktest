@@ -844,23 +844,311 @@ class PDFViewer {
     }
     
     openManualRowEditor() {
-        // For now, just show an alert with instructions
-        // In a full implementation, this would open a modal with manual row editing tools
-        alert(`Manual Row Editor
-
-This feature allows you to manually define row boundaries on the PDF.
-
-Current functionality:
-1. Use the tolerance slider to adjust row grouping sensitivity
-2. Click "Show Row Overlay" to see detected rows
-3. Click "Re-index with New Settings" to apply changes
-
-Future enhancements:
-- Click and drag to create custom row boundaries
-- Delete or merge rows manually
-- Save custom row configurations
-
-For now, adjust the tolerance slider and re-index to fine-tune the row detection.`);
+        if (!this.pdfDoc) {
+            this.showError('No PDF loaded. Please upload a PDF file first.');
+            return;
+        }
+        
+        // Create modal for manual row editing
+        this.createManualRowEditorModal();
+    }
+    
+    createManualRowEditorModal() {
+        // Remove existing modal if any
+        const existingModal = document.getElementById('manual-row-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.id = 'manual-row-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+        
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        `;
+        
+        modalContent.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; color: #1e293b;">Manual Row Editor</h2>
+                <button id="close-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <p style="color: #64748b; margin-bottom: 15px;">
+                    Click on the PDF to add row boundaries. Each click will create a horizontal line that separates text into rows.
+                </p>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="add-row-btn" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">Add Row Boundary</button>
+                    <button id="clear-rows-btn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Clear All Rows</button>
+                    <button id="apply-manual-rows-btn" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">Apply Manual Rows</button>
+                </div>
+                
+                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <strong>Instructions:</strong>
+                    <ol style="margin: 10px 0; padding-left: 20px; color: #475569;">
+                        <li>Click "Add Row Boundary" to enter row placement mode</li>
+                        <li>Click anywhere on the PDF to place a horizontal row boundary</li>
+                        <li>Repeat to add multiple row boundaries</li>
+                        <li>Click "Apply Manual Rows" to re-index with your custom row boundaries</li>
+                    </ol>
+                </div>
+            </div>
+            
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; background: #f8fafc;">
+                <h3 style="margin: 0 0 15px 0; color: #1e293b;">Current Row Boundaries</h3>
+                <div id="row-boundaries-list" style="min-height: 100px;">
+                    <p style="color: #64748b; font-style: italic;">No manual row boundaries set yet.</p>
+                </div>
+            </div>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Add event listeners
+        this.setupManualRowEditorEvents(modal);
+        
+        // Initialize manual row editing state
+        this.manualRowMode = false;
+        this.manualRowBoundaries = [];
+    }
+    
+    setupManualRowEditorEvents(modal) {
+        // Close modal
+        const closeBtn = modal.querySelector('#close-modal');
+        closeBtn.addEventListener('click', () => {
+            modal.remove();
+            this.exitManualRowMode();
+        });
+        
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+                this.exitManualRowMode();
+            }
+        });
+        
+        // Add row boundary button
+        const addRowBtn = modal.querySelector('#add-row-btn');
+        addRowBtn.addEventListener('click', () => {
+            this.enterManualRowMode();
+        });
+        
+        // Clear rows button
+        const clearRowsBtn = modal.querySelector('#clear-rows-btn');
+        clearRowsBtn.addEventListener('click', () => {
+            this.clearManualRowBoundaries();
+        });
+        
+        // Apply manual rows button
+        const applyRowsBtn = modal.querySelector('#apply-manual-rows-btn');
+        applyRowsBtn.addEventListener('click', () => {
+            this.applyManualRowBoundaries();
+            modal.remove();
+        });
+    }
+    
+    enterManualRowMode() {
+        this.manualRowMode = true;
+        this.canvas.style.cursor = 'crosshair';
+        
+        // Add click listener to canvas
+        this.canvas.addEventListener('click', this.handleManualRowClick.bind(this));
+        
+        // Update button state
+        const addRowBtn = document.querySelector('#add-row-btn');
+        if (addRowBtn) {
+            addRowBtn.textContent = 'Click on PDF to Add Row';
+            addRowBtn.style.background = '#10b981';
+        }
+        
+        console.log('Manual row mode activated. Click on the PDF to add row boundaries.');
+    }
+    
+    exitManualRowMode() {
+        this.manualRowMode = false;
+        this.canvas.style.cursor = 'default';
+        
+        // Remove click listener
+        this.canvas.removeEventListener('click', this.handleManualRowClick.bind(this));
+        
+        // Update button state
+        const addRowBtn = document.querySelector('#add-row-btn');
+        if (addRowBtn) {
+            addRowBtn.textContent = 'Add Row Boundary';
+            addRowBtn.style.background = '';
+        }
+    }
+    
+    handleManualRowClick(event) {
+        if (!this.manualRowMode) return;
+        
+        // Get click position relative to canvas
+        const rect = this.canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        // Add row boundary
+        this.manualRowBoundaries.push(y);
+        this.manualRowBoundaries.sort((a, b) => a - b); // Sort by Y position
+        
+        // Update display
+        this.updateRowBoundariesList();
+        this.drawManualRowBoundaries();
+        
+        console.log(`Added row boundary at Y position: ${y.toFixed(1)}`);
+    }
+    
+    updateRowBoundariesList() {
+        const listContainer = document.querySelector('#row-boundaries-list');
+        if (!listContainer) return;
+        
+        if (this.manualRowBoundaries.length === 0) {
+            listContainer.innerHTML = '<p style="color: #64748b; font-style: italic;">No manual row boundaries set yet.</p>';
+            return;
+        }
+        
+        const boundariesHTML = this.manualRowBoundaries.map((y, index) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; margin-bottom: 5px; border: 1px solid #e2e8f0;">
+                <span>Row ${index + 1}: Y = ${y.toFixed(1)}px</span>
+                <button onclick="this.removeManualRowBoundary(${index})" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Remove</button>
+            </div>
+        `).join('');
+        
+        listContainer.innerHTML = boundariesHTML;
+    }
+    
+    drawManualRowBoundaries() {
+        // Remove existing manual row overlays
+        const existingOverlay = document.querySelector('.manual-row-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+        
+        if (this.manualRowBoundaries.length === 0) return;
+        
+        // Create overlay for manual row boundaries
+        const overlay = document.createElement('div');
+        overlay.className = 'manual-row-overlay';
+        overlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: ${this.canvas.width}px;
+            height: ${this.canvas.height}px;
+            pointer-events: none;
+            z-index: 15;
+        `;
+        
+        // Add boundary lines
+        this.manualRowBoundaries.forEach((y, index) => {
+            const line = document.createElement('div');
+            line.style.cssText = `
+                position: absolute;
+                left: 0;
+                top: ${y}px;
+                width: 100%;
+                height: 2px;
+                background-color: #10b981;
+                opacity: 0.8;
+            `;
+            
+            const label = document.createElement('div');
+            label.style.cssText = `
+                position: absolute;
+                left: 10px;
+                top: ${y - 20}px;
+                background-color: #10b981;
+                color: white;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 12px;
+                font-weight: bold;
+            `;
+            label.textContent = `Row ${index + 1}`;
+            
+            overlay.appendChild(line);
+            overlay.appendChild(label);
+        });
+        
+        // Add overlay to canvas container
+        const canvasContainer = this.viewerSection.querySelector('.canvas-container');
+        if (canvasContainer) {
+            canvasContainer.appendChild(overlay);
+        }
+    }
+    
+    clearManualRowBoundaries() {
+        this.manualRowBoundaries = [];
+        this.updateRowBoundariesList();
+        
+        // Remove visual overlays
+        const existingOverlay = document.querySelector('.manual-row-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+        
+        console.log('Cleared all manual row boundaries');
+    }
+    
+    async applyManualRowBoundaries() {
+        if (this.manualRowBoundaries.length === 0) {
+            alert('No manual row boundaries set. Please add some row boundaries first.');
+            return;
+        }
+        
+        try {
+            console.log('Applying manual row boundaries:', this.manualRowBoundaries);
+            
+            // Initialize the indexer if not already done
+            if (!this.indexer) {
+                this.indexer = new window.PDFIndexer();
+            }
+            
+            // Set manual row boundaries
+            this.indexer.setManualRowBoundaries(this.manualRowBoundaries);
+            
+            // Re-index with manual boundaries
+            const words = await this.indexer.indexPDF(this.pdfDoc, this.scale);
+            
+            // Store the detected rows for overlay
+            this.detectedRows = this.indexer.getLastDetectedRows();
+            
+            console.log(`Manual row indexing completed! Extracted ${words.length} words.`);
+            
+            // Show success message
+            this.showIndexingSuccess(words.length);
+            
+            // Exit manual row mode
+            this.exitManualRowMode();
+            
+        } catch (error) {
+            console.error('Error applying manual row boundaries:', error);
+            this.showError(`Manual row indexing failed: ${error.message}`);
+        }
     }
 }
 
