@@ -267,6 +267,11 @@ class PDFViewer {
             this.showViewerContent();
             await this.renderPage();
             
+            // Hide row controls initially (they'll show after indexing)
+            if (this.rowControls) {
+                this.rowControls.style.display = 'none';
+            }
+            
             // Initialize search and highlighting
             this.initializeSearchAndHighlight();
             
@@ -621,6 +626,9 @@ class PDFViewer {
         this.searcher = null;
         this.highlighter = null;
         this.currentSearchResults = [];
+        this.rowOverlay = null;
+        this.currentTolerance = 1.0;
+        this.detectedRows = [];
         this.pdfInput.value = '';
         this.hideViewer();
     }
@@ -671,6 +679,22 @@ class PDFViewer {
                     <div class="controls">
                         <button class="btn btn-primary" id="index-pdf-btn">Index PDF</button>
                         <button class="btn btn-primary" id="new-file-btn">Upload New File</button>
+                    </div>
+                    
+                    <div class="row-controls" id="row-controls" style="display: none;">
+                        <h4>Row Detection Controls</h4>
+                        <div class="control-group">
+                            <label for="tolerance-slider">Row Grouping Tolerance: <span id="tolerance-value">1.0</span>px</label>
+                            <input type="range" id="tolerance-slider" min="0.5" max="5.0" step="0.1" value="1.0">
+                        </div>
+                        <div class="control-group">
+                            <button class="btn btn-secondary" id="show-rows-btn">Show Row Overlay</button>
+                            <button class="btn btn-secondary" id="hide-rows-btn">Hide Row Overlay</button>
+                            <button class="btn btn-secondary" id="reindex-btn">Re-index with New Settings</button>
+                        </div>
+                        <div class="control-group">
+                            <button class="btn btn-secondary" id="manual-rows-btn">Manual Row Editor</button>
+                        </div>
                     </div>
                 </div>
                 
