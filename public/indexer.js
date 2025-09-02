@@ -17,6 +17,8 @@ class PDFIndexer {
         this.words = [];
         this.currentSentence = '';
         this.sentenceBuffer = [];
+        this.customTolerance = null;
+        this.lastDetectedRows = [];
     }
 
     /**
@@ -119,9 +121,8 @@ class PDFIndexer {
         
         console.log(`Text height stats: min=${minHeight.toFixed(1)}, avg=${avgHeight.toFixed(1)}, max=${maxHeight.toFixed(1)}`);
         
-        // Use a more conservative tolerance based on text height
-        // The tolerance should be much smaller than the average text height
-        const tolerance = Math.max(1, avgHeight * 0.1); // 10% of average height, minimum 1 pixel
+        // Use custom tolerance if set, otherwise use conservative default
+        const tolerance = this.customTolerance !== null ? this.customTolerance : Math.max(1, avgHeight * 0.1);
         
         console.log(`Using conservative tolerance of ${tolerance.toFixed(2)} pixels`);
         
@@ -161,6 +162,9 @@ class PDFIndexer {
         });
         
         console.log(`Created ${rows.length} rows from ${textItems.length} text items`);
+        
+        // Store the detected rows for overlay
+        this.lastDetectedRows = rows;
         
         // Additional validation: check for rows with too many items
         const problematicRows = rows.filter(row => row.length > 20);
@@ -365,6 +369,23 @@ class PDFIndexer {
             console.error('Error getting stats:', error);
             return { totalWords: 0, uniqueWords: 0, pages: [] };
         }
+    }
+    
+    /**
+     * Set custom tolerance for row grouping
+     * @param {number} tolerance - Tolerance in pixels
+     */
+    setCustomTolerance(tolerance) {
+        this.customTolerance = tolerance;
+        console.log('Custom tolerance set to:', tolerance);
+    }
+    
+    /**
+     * Get the last detected rows for overlay display
+     * @returns {Array} Array of detected rows
+     */
+    getLastDetectedRows() {
+        return this.lastDetectedRows;
     }
 }
 

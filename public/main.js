@@ -11,6 +11,9 @@ class PDFViewer {
         this.searcher = null;
         this.highlighter = null;
         this.currentSearchResults = [];
+        this.rowOverlay = null;
+        this.currentTolerance = 1.0;
+        this.detectedRows = [];
         
         this.initializeElements();
         this.attachEventListeners();
@@ -49,6 +52,15 @@ class PDFViewer {
         this.searchStatus = document.getElementById('search-status');
         this.resultsList = document.getElementById('results-list');
         this.toggleResultsBtn = document.getElementById('toggle-results-btn');
+        
+        // Row control elements
+        this.rowControls = document.getElementById('row-controls');
+        this.toleranceSlider = document.getElementById('tolerance-slider');
+        this.toleranceValue = document.getElementById('tolerance-value');
+        this.showRowsBtn = document.getElementById('show-rows-btn');
+        this.hideRowsBtn = document.getElementById('hide-rows-btn');
+        this.reindexBtn = document.getElementById('reindex-btn');
+        this.manualRowsBtn = document.getElementById('manual-rows-btn');
         
         console.log('Navigation elements:', {
             prevBtn: this.prevBtn,
@@ -129,6 +141,32 @@ class PDFViewer {
         if (this.toggleResultsBtn) {
             this.toggleResultsBtn.addEventListener('click', () => this.toggleResultsPanel());
             console.log('Toggle results button event listener attached');
+        }
+        
+        // Row control event listeners
+        if (this.toleranceSlider) {
+            this.toleranceSlider.addEventListener('input', (e) => this.updateTolerance(e.target.value));
+            console.log('Tolerance slider event listener attached');
+        }
+        
+        if (this.showRowsBtn) {
+            this.showRowsBtn.addEventListener('click', () => this.showRowOverlay());
+            console.log('Show rows button event listener attached');
+        }
+        
+        if (this.hideRowsBtn) {
+            this.hideRowsBtn.addEventListener('click', () => this.hideRowOverlay());
+            console.log('Hide rows button event listener attached');
+        }
+        
+        if (this.reindexBtn) {
+            this.reindexBtn.addEventListener('click', () => this.reindexWithNewTolerance());
+            console.log('Re-index button event listener attached');
+        }
+        
+        if (this.manualRowsBtn) {
+            this.manualRowsBtn.addEventListener('click', () => this.openManualRowEditor());
+            console.log('Manual rows button event listener attached');
         }
         
         // Custom event listener for search dot clicks
@@ -396,6 +434,11 @@ class PDFViewer {
                 successDiv.parentNode.removeChild(successDiv);
             }
         }, 5000);
+        
+        // Show row controls after successful indexing
+        if (this.rowControls) {
+            this.rowControls.style.display = 'block';
+        }
     }
 
     initializeSearchAndHighlight() {
@@ -661,6 +704,139 @@ class PDFViewer {
             </div>
         `;
         this.showViewer();
+    }
+    
+    // Row control methods
+    updateTolerance(value) {
+        this.currentTolerance = parseFloat(value);
+        if (this.toleranceValue) {
+            this.toleranceValue.textContent = value;
+        }
+        console.log('Tolerance updated to:', this.currentTolerance);
+    }
+    
+    showRowOverlay() {
+        if (!this.detectedRows || this.detectedRows.length === 0) {
+            console.log('No rows detected yet. Please index the PDF first.');
+            return;
+        }
+        
+        this.createRowOverlay();
+    }
+    
+    hideRowOverlay() {
+        if (this.rowOverlay) {
+            this.rowOverlay.remove();
+            this.rowOverlay = null;
+        }
+    }
+    
+    createRowOverlay() {
+        // Remove existing overlay
+        this.hideRowOverlay();
+        
+        const canvasContainer = this.viewerSection.querySelector('.canvas-container');
+        if (!canvasContainer) return;
+        
+        // Create overlay container
+        this.rowOverlay = document.createElement('div');
+        this.rowOverlay.className = 'row-overlay';
+        this.rowOverlay.style.width = this.canvas.width + 'px';
+        this.rowOverlay.style.height = this.canvas.height + 'px';
+        
+        // Add row lines and labels
+        this.detectedRows.forEach((row, index) => {
+            if (row.length > 0) {
+                const firstItem = row[0];
+                const y = firstItem.y;
+                
+                // Create row line
+                const line = document.createElement('div');
+                line.className = 'row-line';
+                line.style.left = '0px';
+                line.style.top = y + 'px';
+                line.style.width = this.canvas.width + 'px';
+                
+                // Create row label
+                const label = document.createElement('div');
+                label.className = 'row-label';
+                label.textContent = `Row ${index + 1}`;
+                label.style.left = '10px';
+                label.style.top = (y - 20) + 'px';
+                
+                this.rowOverlay.appendChild(line);
+                this.rowOverlay.appendChild(label);
+            }
+        });
+        
+        canvasContainer.appendChild(this.rowOverlay);
+        console.log(`Row overlay created with ${this.detectedRows.length} rows`);
+    }
+    
+    async reindexWithNewTolerance() {
+        if (!this.pdfDoc) {
+            this.showError('No PDF loaded. Please upload a PDF file first.');
+            return;
+        }
+        
+        try {
+            console.log('Re-indexing with tolerance:', this.currentTolerance);
+            
+            // Disable the re-index button during processing
+            if (this.reindexBtn) {
+                this.reindexBtn.disabled = true;
+                this.reindexBtn.textContent = 'Re-indexing...';
+            }
+            
+            // Initialize the indexer if not already done
+            if (!this.indexer) {
+                this.indexer = new window.PDFIndexer();
+            }
+            
+            // Set the custom tolerance
+            this.indexer.setCustomTolerance(this.currentTolerance);
+            
+            // Start re-indexing
+            const words = await this.indexer.indexPDF(this.pdfDoc, this.scale);
+            
+            // Store the detected rows for overlay
+            this.detectedRows = this.indexer.getLastDetectedRows();
+            
+            console.log(`Re-indexing completed! Extracted ${words.length} words.`);
+            
+            // Show success message
+            this.showIndexingSuccess(words.length);
+            
+        } catch (error) {
+            console.error('Error during re-indexing:', error);
+            this.showError(`Re-indexing failed: ${error.message}`);
+        } finally {
+            // Re-enable the re-index button
+            if (this.reindexBtn) {
+                this.reindexBtn.disabled = false;
+                this.reindexBtn.textContent = 'Re-index with New Settings';
+            }
+        }
+    }
+    
+    openManualRowEditor() {
+        // For now, just show an alert with instructions
+        // In a full implementation, this would open a modal with manual row editing tools
+        alert(`Manual Row Editor
+
+This feature allows you to manually define row boundaries on the PDF.
+
+Current functionality:
+1. Use the tolerance slider to adjust row grouping sensitivity
+2. Click "Show Row Overlay" to see detected rows
+3. Click "Re-index with New Settings" to apply changes
+
+Future enhancements:
+- Click and drag to create custom row boundaries
+- Delete or merge rows manually
+- Save custom row configurations
+
+For now, adjust the tolerance slider and re-index to fine-tune the row detection.`);
     }
 }
 

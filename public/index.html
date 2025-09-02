@@ -315,6 +315,67 @@
             z-index: 10;
         }
         
+        .row-controls {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .row-controls h4 {
+            margin: 0 0 15px 0;
+            color: #1e293b;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #475569;
+        }
+        
+        .control-group input[type="range"] {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .control-group button {
+            margin-right: 10px;
+            margin-bottom: 5px;
+        }
+        
+        .row-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .row-line {
+            position: absolute;
+            height: 2px;
+            background-color: #ef4444;
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        
+        .row-label {
+            position: absolute;
+            background-color: #ef4444;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        
         .search-dot {
             position: absolute;
             width: 8px;
@@ -416,6 +477,22 @@
                         <button class="btn btn-primary" id="index-pdf-btn">Index PDF</button>
                         <button class="btn btn-primary" id="new-file-btn">Upload New File</button>
                     </div>
+                    
+                    <div class="row-controls" id="row-controls" style="display: none;">
+                        <h4>Row Detection Controls</h4>
+                        <div class="control-group">
+                            <label for="tolerance-slider">Row Grouping Tolerance: <span id="tolerance-value">1.0</span>px</label>
+                            <input type="range" id="tolerance-slider" min="0.5" max="5.0" step="0.1" value="1.0">
+                        </div>
+                        <div class="control-group">
+                            <button class="btn btn-secondary" id="show-rows-btn">Show Row Overlay</button>
+                            <button class="btn btn-secondary" id="hide-rows-btn">Hide Row Overlay</button>
+                            <button class="btn btn-secondary" id="reindex-btn">Re-index with New Settings</button>
+                        </div>
+                        <div class="control-group">
+                            <button class="btn btn-secondary" id="manual-rows-btn">Manual Row Editor</button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="search-results" id="search-results">
@@ -434,7 +511,7 @@
     <script src="/indexer.js"></script>
     <script src="/search.js"></script>
     <script src="/highlight.js"></script>
-    <script src="/main.js?v=6"></script>
+    <script src="/main.js?v=7"></script>
     
     <script>
         // Register service worker
