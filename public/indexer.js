@@ -82,7 +82,7 @@ class PDFIndexer {
      */
     groupTextItemsByRows(textItems, viewport) {
         const rows = [];
-        const tolerance = 5; // pixels tolerance for grouping by Y coordinate
+        const tolerance = 8; // pixels tolerance for grouping by Y coordinate (increased for better grouping)
         
         // Sort text items by Y coordinate (top to bottom)
         const sortedItems = textItems.sort((a, b) => {
@@ -91,7 +91,9 @@ class PDFIndexer {
             return bY - aY; // Higher Y values first (PDF coordinates are bottom-up)
         });
         
-        sortedItems.forEach(item => {
+        console.log(`Processing ${sortedItems.length} text items for row grouping`);
+        
+        sortedItems.forEach((item, itemIndex) => {
             const itemY = viewport.convertToViewportPoint(item.transform[5], item.transform[4])[1];
             
             // Find existing row with similar Y coordinate
@@ -112,12 +114,14 @@ class PDFIndexer {
         });
         
         // Sort items within each row by X coordinate (left to right)
-        rows.forEach(row => {
+        rows.forEach((row, rowIndex) => {
             row.sort((a, b) => {
                 const aX = viewport.convertToViewportPoint(a.transform[4], a.transform[5])[0];
                 const bX = viewport.convertToViewportPoint(b.transform[4], b.transform[5])[0];
                 return aX - bX;
             });
+            
+            console.log(`Row ${rowIndex + 1}: ${row.length} text items, Y position: ${row[0].y.toFixed(1)}`);
         });
         
         return rows;
@@ -131,7 +135,8 @@ class PDFIndexer {
      * @param {Object} viewport - PDF.js viewport object
      */
     processRow(row, pageNum, rowIndex, viewport) {
-        let wordIndex = 1; // Start word index at 1
+        let wordIndex = 1; // Start word index at 1 for this row
+        const rowWords = []; // Collect all words in this row first
         
         row.forEach(item => {
             // Tokenize the text into words
@@ -142,31 +147,43 @@ class PDFIndexer {
                     // Calculate bounding box in canvas coordinates
                     const bbox = this.calculateBoundingBox(item, word, viewport);
                     
-                    // Add to sentence buffer
-                    this.sentenceBuffer.push(word);
-                    
-                    // Check if sentence is complete
-                    const isSentenceEnd = this.isSentenceEnd(word);
-                    
-                    const wordObj = {
+                    rowWords.push({
                         word: word.trim(),
-                        page: pageNum,
-                        row: rowIndex,
-                        index: wordIndex,
                         bbox: bbox,
-                        sentence: this.sentenceBuffer.join(' ')
-                    };
-                    
-                    this.words.push(wordObj);
-                    wordIndex++;
-                    
-                    // Reset sentence buffer if sentence is complete
-                    if (isSentenceEnd) {
-                        this.sentenceBuffer = [];
-                    }
+                        originalItem: item
+                    });
                 }
             });
         });
+        
+        // Now process the words in this row with correct indexing
+        rowWords.forEach((wordData, index) => {
+            const wordIndexInRow = index + 1; // Index within the row (1-based)
+            
+            // Add to sentence buffer
+            this.sentenceBuffer.push(wordData.word);
+            
+            // Check if sentence is complete
+            const isSentenceEnd = this.isSentenceEnd(wordData.word);
+            
+            const wordObj = {
+                word: wordData.word,
+                page: pageNum,
+                row: rowIndex,
+                index: wordIndexInRow, // This is the position within the row
+                bbox: wordData.bbox,
+                sentence: this.sentenceBuffer.join(' ')
+            };
+            
+            this.words.push(wordObj);
+            
+            // Reset sentence buffer if sentence is complete
+            if (isSentenceEnd) {
+                this.sentenceBuffer = [];
+            }
+        });
+        
+        console.log(`Row ${rowIndex}: Added ${rowWords.length} words with indices 1-${rowWords.length}`);
     }
 
     /**
