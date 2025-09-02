@@ -63,7 +63,7 @@ class PDFIndexer {
             
             // Process each row
             rows.forEach((row, rowIndex) => {
-                this.processRow(row, pageNum, rowIndex, viewport);
+                this.processRow(row, pageNum, rowIndex + 1, viewport); // Start row numbering at 1
             });
             
         } catch (error) {
@@ -128,7 +128,7 @@ class PDFIndexer {
      * @param {Object} viewport - PDF.js viewport object
      */
     processRow(row, pageNum, rowIndex, viewport) {
-        let wordIndex = 0;
+        let wordIndex = 1; // Start word index at 1
         
         row.forEach(item => {
             // Tokenize the text into words
