@@ -8,6 +8,9 @@ class PDFViewer {
         this.totalPages = 0;
         this.scale = 1.5;
         this.indexer = null;
+        this.searcher = null;
+        this.highlighter = null;
+        this.currentSearchResults = [];
         
         this.initializeElements();
         this.attachEventListeners();
@@ -39,12 +42,23 @@ class PDFViewer {
         this.newFileBtn = document.getElementById('new-file-btn');
         this.indexPdfBtn = document.getElementById('index-pdf-btn');
         
+        // Search elements
+        this.searchInput = document.getElementById('search-input');
+        this.searchBtn = document.getElementById('search-btn');
+        this.clearSearchBtn = document.getElementById('clear-search-btn');
+        this.searchStatus = document.getElementById('search-status');
+        this.resultsList = document.getElementById('results-list');
+        this.toggleResultsBtn = document.getElementById('toggle-results-btn');
+        
         console.log('Navigation elements:', {
             prevBtn: this.prevBtn,
             nextBtn: this.nextBtn,
             pageInfo: this.pageInfo,
             newFileBtn: this.newFileBtn,
-            indexPdfBtn: this.indexPdfBtn
+            indexPdfBtn: this.indexPdfBtn,
+            searchInput: this.searchInput,
+            searchBtn: this.searchBtn,
+            clearSearchBtn: this.clearSearchBtn
         });
     }
     
@@ -91,6 +105,34 @@ class PDFViewer {
             this.indexPdfBtn.addEventListener('click', () => this.indexPDF());
             console.log('Index PDF button event listener attached');
         }
+        
+        // Search event listeners
+        if (this.searchBtn) {
+            this.searchBtn.addEventListener('click', () => this.performSearch());
+            console.log('Search button event listener attached');
+        }
+        
+        if (this.clearSearchBtn) {
+            this.clearSearchBtn.addEventListener('click', () => this.clearSearch());
+            console.log('Clear search button event listener attached');
+        }
+        
+        if (this.searchInput) {
+            this.searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.performSearch();
+                }
+            });
+            console.log('Search input event listener attached');
+        }
+        
+        if (this.toggleResultsBtn) {
+            this.toggleResultsBtn.addEventListener('click', () => this.toggleResultsPanel());
+            console.log('Toggle results button event listener attached');
+        }
+        
+        // Custom event listener for search dot clicks
+        document.addEventListener('searchDotClick', (e) => this.onSearchDotClick(e.detail));
         
         // Keyboard navigation
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
@@ -171,6 +213,9 @@ class PDFViewer {
             // Show the viewer content and render the first page
             this.showViewerContent();
             await this.renderPage();
+            
+            // Initialize search and highlighting
+            this.initializeSearchAndHighlight();
             
         } catch (error) {
             console.error('Error loading PDF:', error);
@@ -338,11 +383,186 @@ class PDFViewer {
         }, 5000);
     }
 
+    initializeSearchAndHighlight() {
+        try {
+            // Initialize search functionality
+            if (window.PDFSearch) {
+                this.searcher = new window.PDFSearch();
+                console.log('Search functionality initialized');
+            }
+            
+            // Initialize highlighting functionality
+            if (window.PDFHighlighter) {
+                const canvasContainer = this.viewerSection.querySelector('.canvas-container');
+                this.highlighter = new window.PDFHighlighter();
+                this.highlighter.initialize(canvasContainer, this.scale);
+                console.log('Highlighting functionality initialized');
+            }
+            
+        } catch (error) {
+            console.error('Error initializing search and highlighting:', error);
+        }
+    }
+
+    async performSearch() {
+        if (!this.searcher) {
+            this.updateSearchStatus('Search not available. Please index the PDF first.', 'error');
+            return;
+        }
+
+        const searchTerm = this.searchInput.value.trim();
+        if (!searchTerm) {
+            this.updateSearchStatus('Please enter a search term.', 'warning');
+            return;
+        }
+
+        try {
+            this.updateSearchStatus('Searching...', 'info');
+            
+            // Initialize search index if not already done
+            if (!this.searcher.isIndexBuilt) {
+                const initialized = await this.searcher.initialize();
+                if (!initialized) {
+                    this.updateSearchStatus('No indexed words found. Please index the PDF first.', 'error');
+                    return;
+                }
+            }
+            
+            // Perform search
+            const results = this.searcher.search(searchTerm);
+            this.currentSearchResults = results;
+            
+            if (results.length === 0) {
+                this.updateSearchStatus(`No matches found for "${searchTerm}"`, 'warning');
+                this.displaySearchResults([]);
+                this.clearHighlights();
+            } else {
+                this.updateSearchStatus(`Found ${results.length} matches for "${searchTerm}"`, 'success');
+                this.displaySearchResults(results);
+                this.updateHighlights();
+            }
+            
+        } catch (error) {
+            console.error('Error during search:', error);
+            this.updateSearchStatus('Search failed. Please try again.', 'error');
+        }
+    }
+
+    clearSearch() {
+        this.searchInput.value = '';
+        this.currentSearchResults = [];
+        this.updateSearchStatus('', '');
+        this.displaySearchResults([]);
+        this.clearHighlights();
+    }
+
+    displaySearchResults(results) {
+        if (!this.resultsList) return;
+
+        if (results.length === 0) {
+            this.resultsList.innerHTML = '<div class="no-results">No search performed yet</div>';
+            return;
+        }
+
+        const resultsHTML = results.map((result, index) => `
+            <div class="result-item" data-page="${result.page}" data-row="${result.row}" data-index="${result.index}">
+                <div class="result-word">"${result.word}"</div>
+                <div class="result-location">Page ${result.page}, Row ${result.row}, Index ${result.index}</div>
+                <div class="result-sentence">${result.sentence}</div>
+            </div>
+        `).join('');
+
+        this.resultsList.innerHTML = resultsHTML;
+
+        // Add click handlers to result items
+        this.resultsList.querySelectorAll('.result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const page = parseInt(item.dataset.page);
+                const row = parseInt(item.dataset.row);
+                const index = parseInt(item.dataset.index);
+                this.jumpToResult(page, row, index);
+            });
+        });
+    }
+
+    jumpToResult(page, row, index) {
+        console.log(`Jumping to page ${page}, row ${row}, index ${index}`);
+        
+        // Navigate to the page
+        if (page !== this.currentPage) {
+            this.currentPage = page;
+            this.updatePageInfo();
+            this.updateNavigationButtons();
+            this.renderPage();
+        }
+        
+        // Update highlights for the new page
+        this.updateHighlights();
+        
+        // Scroll to the result in the results list
+        const resultItem = this.resultsList.querySelector(`[data-page="${page}"][data-row="${row}"][data-index="${index}"]`);
+        if (resultItem) {
+            resultItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            resultItem.style.backgroundColor = '#eff6ff';
+            setTimeout(() => {
+                resultItem.style.backgroundColor = '';
+            }, 2000);
+        }
+    }
+
+    updateHighlights() {
+        if (this.highlighter) {
+            this.highlighter.updateSearchResults(this.currentSearchResults, this.currentPage);
+        }
+    }
+
+    clearHighlights() {
+        if (this.highlighter) {
+            this.highlighter.clearHighlights();
+        }
+    }
+
+    onSearchDotClick(result) {
+        console.log('Search dot clicked:', result);
+        this.jumpToResult(result.page, result.row, result.index);
+    }
+
+    toggleResultsPanel() {
+        const resultsPanel = document.getElementById('search-results');
+        const toggleBtn = this.toggleResultsBtn;
+        
+        if (resultsPanel.style.display === 'none') {
+            resultsPanel.style.display = 'flex';
+            toggleBtn.textContent = 'Hide';
+        } else {
+            resultsPanel.style.display = 'none';
+            toggleBtn.textContent = 'Show';
+        }
+    }
+
+    updateSearchStatus(message, type = '') {
+        if (!this.searchStatus) return;
+        
+        this.searchStatus.textContent = message;
+        this.searchStatus.className = `search-status ${type}`;
+        
+        // Clear status after 5 seconds for success/info messages
+        if (type === 'success' || type === 'info') {
+            setTimeout(() => {
+                this.searchStatus.textContent = '';
+                this.searchStatus.className = 'search-status';
+            }, 5000);
+        }
+    }
+
     resetViewer() {
         this.pdfDoc = null;
         this.currentPage = 1;
         this.totalPages = 0;
         this.indexer = null;
+        this.searcher = null;
+        this.highlighter = null;
+        this.currentSearchResults = [];
         this.pdfInput.value = '';
         this.hideViewer();
     }
@@ -369,25 +589,51 @@ class PDFViewer {
     showViewerContent() {
         // Restore the viewer content after loading
         this.viewerSection.innerHTML = `
-            <div class="controls">
-                <button class="btn btn-secondary" id="prev-btn" disabled>← Previous</button>
-                <div class="page-info" id="page-info">Page 1 of 1</div>
-                <button class="btn btn-secondary" id="next-btn" disabled>Next →</button>
+            <div class="search-section">
+                <div class="search-bar">
+                    <input type="text" id="search-input" placeholder="Search for words..." />
+                    <button class="btn btn-primary" id="search-btn">Search</button>
+                    <button class="btn btn-secondary" id="clear-search-btn">Clear</button>
+                </div>
+                <div class="search-status" id="search-status"></div>
             </div>
             
-            <div class="canvas-container">
-                <canvas id="pdf-canvas"></canvas>
-            </div>
-            
-            <div class="controls">
-                <button class="btn btn-primary" id="index-pdf-btn">Index PDF</button>
-                <button class="btn btn-primary" id="new-file-btn">Upload New File</button>
+            <div class="main-content">
+                <div class="pdf-viewer">
+                    <div class="controls">
+                        <button class="btn btn-secondary" id="prev-btn" disabled>← Previous</button>
+                        <div class="page-info" id="page-info">Page 1 of 1</div>
+                        <button class="btn btn-secondary" id="next-btn" disabled>Next →</button>
+                    </div>
+                    
+                    <div class="canvas-container">
+                        <canvas id="pdf-canvas"></canvas>
+                    </div>
+                    
+                    <div class="controls">
+                        <button class="btn btn-primary" id="index-pdf-btn">Index PDF</button>
+                        <button class="btn btn-primary" id="new-file-btn">Upload New File</button>
+                    </div>
+                </div>
+                
+                <div class="search-results" id="search-results">
+                    <div class="results-header">
+                        <h3>Search Results</h3>
+                        <button class="btn btn-secondary" id="toggle-results-btn">Hide</button>
+                    </div>
+                    <div class="results-list" id="results-list">
+                        <div class="no-results">No search performed yet</div>
+                    </div>
+                </div>
             </div>
         `;
         
         // Re-initialize elements after DOM update
         this.initializeElements();
         this.attachEventListeners();
+        
+        // Re-initialize search and highlighting
+        this.initializeSearchAndHighlight();
     }
     
     showError(message) {

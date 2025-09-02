@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "dexie": "^4.2.0",
+    "lunr": "^2.3.9",
     "pdfjs-dist": "^3.11.174"
   },
   "engines": {
