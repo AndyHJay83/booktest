@@ -849,8 +849,244 @@ class PDFViewer {
             return;
         }
         
-        // Create modal for manual row editing
-        this.createManualRowEditorModal();
+        if (!this.detectedRows || this.detectedRows.length === 0) {
+            alert('No rows detected yet. Please index the PDF first to see the current row boundaries.');
+            return;
+        }
+        
+        // Show current rows first, then allow manual editing
+        this.showCurrentRowsForEditing();
+    }
+    
+    showCurrentRowsForEditing() {
+        // First show the current detected rows
+        this.showRowOverlay();
+        
+        // Create a simple editing interface
+        this.createRowEditingInterface();
+    }
+    
+    createRowEditingInterface() {
+        // Remove existing editing interface if any
+        const existingInterface = document.getElementById('row-editing-interface');
+        if (existingInterface) {
+            existingInterface.remove();
+        }
+        
+        // Create editing interface
+        const interface = document.createElement('div');
+        interface.id = 'row-editing-interface';
+        interface.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 2px solid #2563eb;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            max-width: 300px;
+        `;
+        
+        interface.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #1e293b;">Row Editor</h3>
+                <button id="close-editor" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <p style="color: #64748b; font-size: 14px; margin: 0 0 10px 0;">
+                    Current rows are highlighted in red. Click on the PDF to add new row boundaries.
+                </p>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <button id="add-boundary-btn" class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;">Add Boundary</button>
+                    <button id="clear-boundaries-btn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Clear All</button>
+                </div>
+                
+                <div style="display: flex; gap: 8px;">
+                    <button id="apply-changes-btn" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px; background: #10b981;">Apply Changes</button>
+                    <button id="cancel-editing-btn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Cancel</button>
+                </div>
+            </div>
+            
+            <div style="background: #f8fafc; padding: 10px; border-radius: 6px; max-height: 200px; overflow-y: auto;">
+                <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">Current Boundaries:</div>
+                <div id="boundaries-list" style="font-size: 12px; color: #475569;">
+                    Loading...
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(interface);
+        
+        // Setup event listeners
+        this.setupRowEditingEvents(interface);
+        
+        // Initialize manual row boundaries from current detected rows
+        this.initializeManualBoundariesFromCurrentRows();
+        
+        // Update boundaries list
+        this.updateBoundariesList();
+    }
+    
+    setupRowEditingEvents(interface) {
+        // Close editor
+        const closeBtn = interface.querySelector('#close-editor');
+        closeBtn.addEventListener('click', () => {
+            this.exitRowEditingMode();
+        });
+        
+        // Cancel editing
+        const cancelBtn = interface.querySelector('#cancel-editing-btn');
+        cancelBtn.addEventListener('click', () => {
+            this.exitRowEditingMode();
+        });
+        
+        // Add boundary
+        const addBoundaryBtn = interface.querySelector('#add-boundary-btn');
+        addBoundaryBtn.addEventListener('click', () => {
+            this.enterAddBoundaryMode();
+        });
+        
+        // Clear boundaries
+        const clearBtn = interface.querySelector('#clear-boundaries-btn');
+        clearBtn.addEventListener('click', () => {
+            this.clearAllManualBoundaries();
+        });
+        
+        // Apply changes
+        const applyBtn = interface.querySelector('#apply-changes-btn');
+        applyBtn.addEventListener('click', () => {
+            this.applyManualRowChanges();
+        });
+    }
+    
+    initializeManualBoundariesFromCurrentRows() {
+        // Extract Y positions from current detected rows
+        this.manualRowBoundaries = [];
+        if (this.detectedRows && this.detectedRows.length > 0) {
+            // Get Y positions of each row (use the first item's Y position)
+            this.manualRowBoundaries = this.detectedRows.map(row => {
+                if (row.length > 0) {
+                    return row[0].y;
+                }
+                return 0;
+            }).filter(y => y > 0);
+            
+            console.log('Initialized manual boundaries from current rows:', this.manualRowBoundaries);
+        }
+    }
+    
+    enterAddBoundaryMode() {
+        this.manualRowMode = true;
+        this.canvas.style.cursor = 'crosshair';
+        
+        // Add click listener to canvas
+        this.canvas.addEventListener('click', this.handleManualRowClick.bind(this));
+        
+        // Update button state
+        const addBtn = document.querySelector('#add-boundary-btn');
+        if (addBtn) {
+            addBtn.textContent = 'Click on PDF';
+            addBtn.style.background = '#10b981';
+        }
+        
+        console.log('Add boundary mode activated. Click on the PDF to add row boundaries.');
+    }
+    
+    exitRowEditingMode() {
+        this.manualRowMode = false;
+        this.canvas.style.cursor = 'default';
+        
+        // Remove click listener
+        this.canvas.removeEventListener('click', this.handleManualRowClick.bind(this));
+        
+        // Remove editing interface
+        const interface = document.getElementById('row-editing-interface');
+        if (interface) {
+            interface.remove();
+        }
+        
+        // Remove manual row overlays
+        const existingOverlay = document.querySelector('.manual-row-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+        
+        // Hide row overlay
+        this.hideRowOverlay();
+    }
+    
+    clearAllManualBoundaries() {
+        this.manualRowBoundaries = [];
+        this.updateBoundariesList();
+        this.drawManualRowBoundaries();
+        console.log('Cleared all manual row boundaries');
+    }
+    
+    updateBoundariesList() {
+        const listContainer = document.querySelector('#boundaries-list');
+        if (!listContainer) return;
+        
+        if (this.manualRowBoundaries.length === 0) {
+            listContainer.innerHTML = '<div style="color: #64748b; font-style: italic;">No boundaries set</div>';
+            return;
+        }
+        
+        const boundariesHTML = this.manualRowBoundaries.map((y, index) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #e2e8f0;">
+                <span>Row ${index + 1}: Y = ${y.toFixed(1)}px</span>
+                <button onclick="window.pdfViewer.removeManualBoundary(${index})" style="background: #ef4444; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">Remove</button>
+            </div>
+        `).join('');
+        
+        listContainer.innerHTML = boundariesHTML;
+    }
+    
+    removeManualBoundary(index) {
+        this.manualRowBoundaries.splice(index, 1);
+        this.updateBoundariesList();
+        this.drawManualRowBoundaries();
+        console.log(`Removed boundary at index ${index}`);
+    }
+    
+    async applyManualRowChanges() {
+        if (this.manualRowBoundaries.length === 0) {
+            alert('No row boundaries set. Please add some boundaries first.');
+            return;
+        }
+        
+        try {
+            console.log('Applying manual row changes:', this.manualRowBoundaries);
+            
+            // Initialize the indexer if not already done
+            if (!this.indexer) {
+                this.indexer = new window.PDFIndexer();
+            }
+            
+            // Set manual row boundaries
+            this.indexer.setManualRowBoundaries(this.manualRowBoundaries);
+            
+            // Re-index with manual boundaries
+            const words = await this.indexer.indexPDF(this.pdfDoc, this.scale);
+            
+            // Store the detected rows for overlay
+            this.detectedRows = this.indexer.getLastDetectedRows();
+            
+            console.log(`Manual row indexing completed! Extracted ${words.length} words.`);
+            
+            // Show success message
+            this.showIndexingSuccess(words.length);
+            
+            // Exit editing mode
+            this.exitRowEditingMode();
+            
+        } catch (error) {
+            console.error('Error applying manual row changes:', error);
+            this.showError(`Manual row indexing failed: ${error.message}`);
+        }
     }
     
     createManualRowEditorModal() {
@@ -1016,10 +1252,28 @@ class PDFViewer {
         this.manualRowBoundaries.sort((a, b) => a - b); // Sort by Y position
         
         // Update display
-        this.updateRowBoundariesList();
+        this.updateBoundariesList();
         this.drawManualRowBoundaries();
         
+        // Exit add boundary mode
+        this.exitAddBoundaryMode();
+        
         console.log(`Added row boundary at Y position: ${y.toFixed(1)}`);
+    }
+    
+    exitAddBoundaryMode() {
+        this.manualRowMode = false;
+        this.canvas.style.cursor = 'default';
+        
+        // Remove click listener
+        this.canvas.removeEventListener('click', this.handleManualRowClick.bind(this));
+        
+        // Update button state
+        const addBtn = document.querySelector('#add-boundary-btn');
+        if (addBtn) {
+            addBtn.textContent = 'Add Boundary';
+            addBtn.style.background = '';
+        }
     }
     
     updateRowBoundariesList() {
@@ -1169,7 +1423,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('PDF.js version:', pdfjsLib.version);
     console.log('Initializing PDF viewer...');
-    new PDFViewer();
+    window.pdfViewer = new PDFViewer();
 });
 
 // Handle PWA install prompt

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'book-reader-v6';
+const CACHE_NAME = 'book-reader-v7';
 const urlsToCache = [
   '/',
   '/index.html',
