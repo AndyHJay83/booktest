@@ -874,9 +874,9 @@ class PDFViewer {
         }
         
         // Create editing interface
-        const interface = document.createElement('div');
-        interface.id = 'row-editing-interface';
-        interface.style.cssText = `
+        const editingInterface = document.createElement('div');
+        editingInterface.id = 'row-editing-interface';
+        editingInterface.style.cssText = `
             position: fixed;
             top: 20px;
             right: 20px;
@@ -919,10 +919,10 @@ class PDFViewer {
             </div>
         `;
         
-        document.body.appendChild(interface);
+        document.body.appendChild(editingInterface);
         
         // Setup event listeners
-        this.setupRowEditingEvents(interface);
+        this.setupRowEditingEvents(editingInterface);
         
         // Initialize manual row boundaries from current detected rows
         this.initializeManualBoundariesFromCurrentRows();
@@ -931,33 +931,33 @@ class PDFViewer {
         this.updateBoundariesList();
     }
     
-    setupRowEditingEvents(interface) {
+    setupRowEditingEvents(editingInterface) {
         // Close editor
-        const closeBtn = interface.querySelector('#close-editor');
+        const closeBtn = editingInterface.querySelector('#close-editor');
         closeBtn.addEventListener('click', () => {
             this.exitRowEditingMode();
         });
         
         // Cancel editing
-        const cancelBtn = interface.querySelector('#cancel-editing-btn');
+        const cancelBtn = editingInterface.querySelector('#cancel-editing-btn');
         cancelBtn.addEventListener('click', () => {
             this.exitRowEditingMode();
         });
         
         // Add boundary
-        const addBoundaryBtn = interface.querySelector('#add-boundary-btn');
+        const addBoundaryBtn = editingInterface.querySelector('#add-boundary-btn');
         addBoundaryBtn.addEventListener('click', () => {
             this.enterAddBoundaryMode();
         });
         
         // Clear boundaries
-        const clearBtn = interface.querySelector('#clear-boundaries-btn');
+        const clearBtn = editingInterface.querySelector('#clear-boundaries-btn');
         clearBtn.addEventListener('click', () => {
             this.clearAllManualBoundaries();
         });
         
         // Apply changes
-        const applyBtn = interface.querySelector('#apply-changes-btn');
+        const applyBtn = editingInterface.querySelector('#apply-changes-btn');
         applyBtn.addEventListener('click', () => {
             this.applyManualRowChanges();
         });
